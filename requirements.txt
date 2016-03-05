@@ -1,0 +1,4 @@
+Django==1.9
+requests
+google-api-python-client
+pyopenssl

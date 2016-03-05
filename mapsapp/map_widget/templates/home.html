@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style type="text/css">
+	html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      #map_container {
+        height: 60%;
+      }
+      #address_lists{
+      	height: 40%;
+      }
+</style>
+<!-- syncronously load jquery so that it will be available before google maps loads-->
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.0.0-beta1/jquery.min.js"></script>
+</head>
+<body>
+	<div id="map_container">
+
+	</div>
+
+	<div id="address_lists" data-test="testing">
+		<h1>List of addresses clicked on <input type="submit" value="reset" onclick="resetMap()" /></h1>
+		<ul id="addresses"></ul>
+
+	</div>
+
+	<script type="text/javascript">
+			var map;
+			var all_markers = [];
+			var address = [];
+
+	      function initMap() {
+	        map = new google.maps.Map(document.getElementById('map_container'), {
+	        	//40.748817,-73.985428 new york
+	        	//-34.397, 150.644 somewhere else
+	          center: {lat: 40.748817, lng: -73.985428},
+	          zoom: 8
+	        });
+
+	        //function to call when a map is clicked
+	        map.addListener('click', function(e) {
+	        	// alert(e.latLng.lng());
+	        	//long = e.latLng.lat()
+	        	var lat = e.latLng.lat();
+	        	var lng = e.latLng.lng();
+
+	        	var google_url_to_confirm_lat_and_long = "https://maps.googleapis.com/maps/api/geocode/json?latlng="+lat+","+lng+"&key=AIzaSyAXhuYNkWdhSKnnq7nRzq7N1LaSsKfx9h4&sensor=true";
+
+	        	console.log(google_url_to_confirm_lat_and_long)
+	        	
+	        	$.ajax({
+	        		url: google_url_to_confirm_lat_and_long,
+	        		dataType: "json"
+	        	}).done(function(data){
+	        		if(data.status == "ZERO_RESULTS"){
+	        			//not a valid region
+
+	        		}else if(data.status == "OK"){
+	        			var human_readable_address = data.results[0].formatted_address;
+
+	        			// alert(human_readable_address);
+
+	        			//send data to db
+	        			addClickToDb(lat, lng, human_readable_address, function(rows){
+	        				var addresses = [];
+
+	        				for(var i =0; i < rows.length; i++){
+	        					row = rows[i];
+	        					addMakerOnLocationClicked(row[0], row[1], map);
+
+	        					//append address to ul
+	        					addresses.push(row[2]);
+	        				}
+
+	        				addAddressBelowMap(addresses);
+
+	        			});
+
+	        			
+
+	        			
+	        		}else{
+	        			//some error occured
+	        			alert("Some error occured. We are looking into it")
+	        		}
+	        		
+	        	});
+
+			    
+			});
+
+			function addClickToDb(lat, lng, addr, callback){
+				$.ajax({
+					dataType: "jsonp",
+					url: "/api/add_click_data?lat="+lat+"&lng="+lng+"&address="+encodeURIComponent(addr)
+				}).done(function(data){
+					
+					callback(data.rows)
+				});
+			}
+
+			function addAddressBelowMap(addresses){
+				var aList = $('#addresses');
+				aList.empty();
+				for(var i=0; i < addresses.length; i++){
+					addr = addresses[i];
+					var li = $("<li/>").text(addr).appendTo(aList);
+				}
+
+			}
+
+
+			function addMakerOnLocationClicked(_lat, _lng, map){
+
+				var marker = new google.maps.Marker({
+					position: {lat: _lat, lng: _lng},
+				    map: map
+				  });
+
+				all_markers.push(marker)
+
+			}
+
+
+
+
+
+	      }
+
+	      function resetMap(){
+				$.ajax({
+					dataType: "jsonp",
+					url: "/api/reset_data"
+				}).done(function(data){
+
+					// map.clearOverlays();
+
+					for(var i=0; i<all_markers.length; i++){
+				        all_markers[i].setMap(null);
+				    }
+
+					var aList = $('#addresses');
+					aList.empty();
+					alert("Everything on your map is cleared")
+
+				})
+			}
+
+
+	</script>
+	 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAXhuYNkWdhSKnnq7nRzq7N1LaSsKfx9h4&callback=initMap"
+    async defer></script>
+</body>
+</html>
